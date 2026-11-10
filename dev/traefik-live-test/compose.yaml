@@ -1,0 +1,139 @@
+# SPDX-FileCopyrightText: 2026 Homelab Control Extensions contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+name: hc-traefik-live
+x-limits: &limits
+  user: '1000:1000'
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 128
+  mem_limit: 256m
+  cpus: 0.5
+  restart: 'no'
+  init: true
+services:
+  traefik:
+    <<: *limits
+    image: docker.io/library/traefik@sha256:f4bb143d1135a579b630ed491e17ec50f6f7c9c6a30585ff3d385471d2a86f5a
+    container_name: hc-traefik-fixture
+    command: [--configFile=/etc/traefik/traefik.yaml]
+    networks:
+      test:
+        aliases: [traefik-test]
+    volumes:
+      - type: bind
+        source: ./traefik.yaml
+        target: /etc/traefik/traefik.yaml
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ./dynamic.yaml
+        target: /etc/traefik/dynamic.yaml
+        read_only: true
+        bind: {create_host_path: false}
+    healthcheck:
+      test: [CMD, traefik, healthcheck, --configFile=/etc/traefik/traefik.yaml]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+  plugin:
+    <<: *limits
+    image: homecontrol/traefik-plugin:dev
+    pull_policy: never
+    container_name: hc-traefik-plugin-test
+    environment:
+      TRAEFIK_API_ORIGIN: http://traefik-test:9081
+      HC_HELPER_TOKEN_FILE: /run/secrets/helper_token
+    secrets: [helper_token]
+    networks:
+      test:
+        aliases: [traefik-plugin]
+    depends_on:
+      traefik: {condition: service_healthy}
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - --input-type=module
+        - -e
+        - |
+          import {readToken} from './src/secrets.mjs';
+          try {
+            const r = await fetch('http://127.0.0.1:9080/v1/diagnostics', {
+              headers: {Authorization: 'Bearer ' + readToken(process.env.HC_HELPER_TOKEN_FILE)},
+              signal: AbortSignal.timeout(4000)
+            });
+            const d = await r.json();
+            process.exit(r.ok && d.schemaVersion === 1 && d.status === 'available' ? 0 : 1);
+          } catch { process.exit(1); }
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+  core:
+    <<: *limits
+    image: homecontrol/traefik-core:phase4-r1
+    pull_policy: never
+    container_name: hc-traefik-core-test
+    mem_limit: 512m
+    cpus: 1
+    command:
+      - -listen
+      - 127.0.0.1:9180
+      - -dev-insecure-http
+      - -users-file
+      - /state/users.json
+      - -state-db
+      - /state/state.db
+      - -broker-socket=
+      - -modules-config
+      - /opt/live-test/modules.json
+      - -files-config
+      - /opt/live-test/files.json
+      - -traefik-helper-origin
+      - http://traefik-plugin:9080
+      - -traefik-helper-token-file
+      - /run/secrets/helper_token
+    secrets: [helper_token, users_source, viewer_password, denied_password]
+    tmpfs:
+      - /state:rw,noexec,nosuid,nodev,uid=1000,gid=1000,mode=0700,size=33554432
+    networks: [test]
+    depends_on:
+      plugin: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, node, /opt/live-test/core-health.mjs]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+  browser:
+    <<: *limits
+    profiles: [validation]
+    image: homecontrol/traefik-browser:phase4-r1
+    pull_policy: never
+    container_name: hc-traefik-browser-test
+    network_mode: service:core
+    secrets: [viewer_password]
+    pids_limit: 256
+    mem_limit: 1g
+    cpus: 1
+    shm_size: 256m
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,uid=1000,gid=1000,mode=0700,size=268435456
+    depends_on:
+      core: {condition: service_healthy}
+networks:
+  test:
+    external: true
+    name: hc-traefik-test
+secrets:
+  helper_token:
+    file: ${HC_LIVE_SECRET_DIR:?Set the separately approved private secret directory}/helper_token
+  users_source:
+    file: ${HC_LIVE_SECRET_DIR:?Set the separately approved private secret directory}/users.json
+  viewer_password:
+    file: ${HC_LIVE_SECRET_DIR:?Set the separately approved private secret directory}/viewer_password
+  denied_password:
+    file: ${HC_LIVE_SECRET_DIR:?Set the separately approved private secret directory}/denied_password

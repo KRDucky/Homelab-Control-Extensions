@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: 2026 Homelab Control Extensions contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+# PROPOSAL ONLY (Phase 7 Variant B). Merge after compose.broker.proposal.yaml; do not deploy
+# without separate approval. Changes only CORE's image: phase7-r1 differs from phase7 solely in
+# prepare-users.mjs, which also grants platforms.read to the isolated traefik-viewer test account.
+services:
+  core:
+    image: homecontrol/traefik-core:phase7-r1

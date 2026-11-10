@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>Traefik development preview</title>
+<main><h1>Networking → Reverse Proxy → Traefik</h1>
+<p>Development preview. HomeControl integration pending. HTTP inventory is read-only.</p>
+<label>Development helper token <input id="token" type="password" autocomplete="off"></label>
+<button id="refresh">Refresh dashboard</button><button id="diagnose">Check API connection</button><p id="status" role="status"></p>
+<h2>HTTP routers, services and middleware</h2><pre id="inventory"></pre>
+<h2>Connection diagnostics</h2><pre id="diagnostics"></pre>
+<h2>Compose label preview</h2>
+<form id="generator">
+<label>Name <input name="name" value="demo" required></label>
+<label>Hostname <input name="host" value="demo.localhost" required></label>
+<label>Container port <input name="port" type="number" min="1" max="65535" value="8080" required></label>
+<label>Entrypoint <input name="entrypoint" value="web" required></label>
+<label>Incoming protocol <select name="protocol"><option value="http">HTTP</option><option value="https">HTTPS (TLS)</option></select></label>
+<label>Upstream scheme <select name="upstreamScheme"><option value="http">HTTP</option><option value="https">HTTPS (verify certificate)</option></select></label>
+<label>Existing certificate resolver (HTTPS only, optional) <input name="certificateResolver"></label>
+<button>Generate labels</button></form><pre id="labels"></pre>
+<p>HTTPS with no resolver uses Traefik's configured certificate store or default certificate. This preview does not provision certificates, redirect HTTP, or verify entrypoints. An explicit resolver reference can trigger issuance when a user later applies the labels.</p>
+<p>Preview only. Copy the labels into a user-managed Compose service after review.</p>
+</main><script src="/dashboard.js"></script></html>

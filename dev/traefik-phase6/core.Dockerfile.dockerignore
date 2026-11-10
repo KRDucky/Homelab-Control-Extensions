@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: 2026 Homelab Control Extensions contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+**
+!dev/
+!dev/traefik-phase6/
+!dev/traefik-phase6/core-entrypoint.sh
+!dev/traefik-phase6/prepare-users.mjs
+!dev/traefik-live-test/
+!dev/traefik-live-test/core-health.mjs
+!dev/traefik-live-test/private-file.mjs
+!dev/traefik-live-test/modules.json
+!dev/traefik-live-test/files.json
