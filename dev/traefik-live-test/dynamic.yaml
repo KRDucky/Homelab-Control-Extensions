@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2026 Homelab Control Extensions contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+http:
+  routers:
+    hc-api:
+      entryPoints: [hc-admin]
+      rule: 'PathPrefix(`/api`)'
+      service: api@internal
+    fixture-router:
+      entryPoints: [web]
+      rule: 'Host(`fixture.localhost`) && Path(`/ping`)'
+      service: fixture-service
+      middlewares: [fixture-headers]
+  services:
+    fixture-service:
+      loadBalancer:
+        servers:
+          - url: http://127.0.0.1:9081
+  middlewares:
+    fixture-headers:
+      headers:
+        customResponseHeaders:
+          X-HomeControl-Fixture: phase4

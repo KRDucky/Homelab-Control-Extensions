@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2026 Homelab Control Extensions contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Private test fixture only; not installed or running.
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+entryPoints:
+  hc-admin:
+    address: ':9081'
+  web:
+    address: ':8080'
+api:
+  dashboard: false
+  insecure: false
+ping:
+  entryPoint: hc-admin
+providers:
+  file:
+    filename: /etc/traefik/dynamic.yaml
+    watch: false
+log:
+  level: INFO
