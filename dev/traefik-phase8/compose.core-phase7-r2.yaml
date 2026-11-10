@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 Homelab Control Extensions contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Isolated MediaMouse test only (Phase 7-r2, live-validated 2026-11-10). See README.md.
+# Merge after dev/traefik-phase7/compose.broker.proposal.yaml. Changes only CORE's image:
+# homecontrol/traefik-core:phase7-r2 = sha256:2fc56a401bdcb7a913a649989a1122b1c59576ad42d9679a6691696dfd1f0d72
+# (hc-api ef4d7c5203dd5a51d522d0b69469dc24c905d14f271bcdd0b08a8f6c843de9c2), a locally built test image.
+services:
+  core:
+    image: homecontrol/traefik-core:phase7-r2

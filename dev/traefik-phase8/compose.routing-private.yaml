@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: 2026 Homelab Control Extensions contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Isolated MediaMouse test only (Phase 8, live-validated 2026-11-10). See README.md.
+# Merge LAST, after compose.core-phase7-r2.yaml. Changes only the source of CORE's
+# routing-config bind; target, read-only flag and every other mount are unchanged
+# (Compose merges service volumes by target). The source is a MediaMouse-specific
+# private test path, NOT a portable or production default; it must exist (0644 file
+# in a 0700 directory owned by the rootless Docker user) or `up` fails closed.
+services:
+  core:
+    volumes:
+      - type: bind
+        source: /home/ian/.homecontrol-metadata-test/config/routing.json
+        target: /opt/live-test/docker-metadata-routing.json
+        read_only: true
+        bind: {create_host_path: false}
