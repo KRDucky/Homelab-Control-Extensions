@@ -1,0 +1,9 @@
+*
+!src/
+!src/**
+!ui/
+!ui/**
+!test/
+!test/**
+!compose.yaml
+!Dockerfile

@@ -1,0 +1,9 @@
+{
+  "name": "@homelab-control/traefik-helper",
+  "version": "0.1.0",
+  "private": true,
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": { "test": "node test/traefik.test.mjs", "start": "node src/server.mjs" }
+}
