@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: 2026 Homelab Control Extensions contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+services:
+  plugin:
+    image: homecontrol/traefik-plugin:phase6
+  core:
+    image: homecontrol/traefik-core:phase6
+    command:
+      - -listen
+      - 127.0.0.1:9180
+      - -dev-insecure-http
+      - -compose-discovery-fixture
+      - -users-file
+      - /state/users.json
+      - -state-db
+      - /state/state.db
+      - -broker-socket=
+      - -modules-config
+      - /opt/live-test/modules.json
+      - -files-config
+      - /opt/live-test/files.json
+      - -traefik-helper-origin
+      - http://traefik-plugin:9080
+      - -traefik-helper-token-file
+      - /run/secrets/helper_token
