@@ -8,7 +8,8 @@ export function grantFixtureScope(source) {
  const viewers=copy.users.filter(u=>u.username==='traefik-viewer');
  if(viewers.length!==1 || viewers[0].disabled || !Array.isArray(viewers[0].scopes) || !viewers[0].scopes.includes('networking.proxy.read')) throw new Error('Expected enabled proxy viewer');
  const viewer=viewers[0];
- if(!viewer.scopes.includes('docker.compose.read'))viewer.scopes.push('docker.compose.read');
+ // Phase 7 Variant B: read-only platform registry listing for the isolated test viewer only.
+ for(const scope of ['docker.compose.read','platforms.read'])if(!viewer.scopes.includes(scope))viewer.scopes.push(scope);
  return copy;
 }
 if (process.argv[1]?.endsWith('/prepare-users.mjs')) {

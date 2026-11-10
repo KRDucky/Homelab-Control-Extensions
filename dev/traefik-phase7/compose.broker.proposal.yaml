@@ -1,0 +1,47 @@
+# SPDX-FileCopyrightText: 2026 Homelab Control Extensions contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+# PROPOSAL ONLY. Merge after base Phase 4 and Phase 6 overlays; do not deploy.
+services:
+  core:
+    image: homecontrol/traefik-core:phase7
+    command:
+      - -listen
+      - 127.0.0.1:9180
+      - -dev-insecure-http
+      - -users-file
+      - /state/users.json
+      - -state-db
+      - /state/state.db
+      - -broker-socket=
+      - -modules-config
+      - /opt/live-test/modules.json
+      - -files-config
+      - /opt/live-test/files.json
+      - -traefik-helper-origin
+      - http://traefik-plugin:9080
+      - -traefik-helper-token-file
+      - /run/secrets/helper_token
+      - -docker-metadata-socket
+      - /run/hc-metadata/broker.sock
+      - -docker-metadata-token-file
+      - /run/secrets/docker_metadata_token
+      - -docker-metadata-server-uid
+      - '0'
+      - -docker-metadata-routing-config
+      - /opt/live-test/docker-metadata-routing.json
+    volumes:
+      - type: bind
+        source: /home/ian/.homecontrol-metadata-test/transport
+        target: /run/hc-metadata
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: /home/ian/.homecontrol-metadata-test/credentials/broker_token
+        target: /run/secrets/docker_metadata_token
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: /home/ian/Projects/Homelab-Control-Traefik/dev/docker-metadata-test/routing.example.json
+        target: /opt/live-test/docker-metadata-routing.json
+        read_only: true
+        bind: {create_host_path: false}
