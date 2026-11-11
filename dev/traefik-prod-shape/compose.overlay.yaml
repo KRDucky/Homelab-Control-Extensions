@@ -1,0 +1,77 @@
+# SPDX-FileCopyrightText: 2026 Homelab Control Extensions contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Isolated MediaMouse test only. Merge AFTER the live-test compose.yaml and
+# Phase 6/7/8/9 overlays. Recreates the Traefik fixture mounts to /config
+# and adds two simple web apps. No published ports. No Docker provider.
+# Do not recreate CORE.
+
+x-webapp: &webapp
+  user: '1000:1000'
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 64
+  mem_limit: 128m
+  cpus: 0.25
+  restart: 'no'
+  init: true
+  image: docker.io/library/node:22.23.3-bookworm@sha256:69a5713e7f4997e96d579aafd78734810e0dac0dd5ee4621d72c27a2891a4088
+  pull_policy: never
+  working_dir: /tmp
+  tmpfs:
+    - /tmp:uid=1000,gid=1000,mode=0700,size=16777216
+  networks: [test]
+  command:
+    - node
+    - --input-type=module
+    - -e
+    - |
+      const name = process.env.HC_WEBAPP;
+      const s = await import('node:http');
+      s.createServer((q, r) => {
+        r.writeHead(200, {'Content-Type': 'text/plain; charset=utf-8'});
+        r.end(name + ' ' + q.url + '\n');
+      }).listen(8080, '0.0.0.0');
+
+services:
+  traefik:
+    command: [--configFile=/config/traefik.yml]
+    tmpfs:
+      - /tmp:uid=1000,gid=1000,mode=0700,size=16777216
+      - /var/log/traefik:uid=1000,gid=1000,mode=0700,size=16777216
+    volumes:
+      - type: bind
+        source: ./traefik.yml
+        target: /config/traefik.yml
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ./dynamic
+        target: /config/dynamic
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ./certs
+        target: /config/certs
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ./auth
+        target: /config/auth
+        read_only: true
+        bind: {create_host_path: false}
+    healthcheck:
+      test: [CMD, traefik, healthcheck, --configFile=/config/traefik.yml]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+  webapp-a:
+    <<: *webapp
+    container_name: hc-traefik-webapp-a
+    environment: {HC_WEBAPP: webapp-a}
+  webapp-b:
+    <<: *webapp
+    container_name: hc-traefik-webapp-b
+    environment: {HC_WEBAPP: webapp-b}

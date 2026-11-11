@@ -1,0 +1,104 @@
+# SPDX-FileCopyrightText: 2026 Homelab Control Extensions contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Isolated MediaMouse test only. Mounted at /config/dynamic/dynamic.yml.
+# Keeps the Phase 4/7-r2 routers so CORE API 67/67 still matches.
+
+tls:
+  certificates:
+    - certFile: /config/certs/isolated.crt
+      keyFile: /config/certs/isolated.key
+      stores:
+        - default
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /config/certs/isolated.crt
+        keyFile: /config/certs/isolated.key
+  options:
+    default:
+      minVersion: VersionTLS12
+      sniStrict: true
+
+http:
+  routers:
+    hc-api:
+      entryPoints: [hc-admin]
+      rule: 'PathPrefix(`/api`)'
+      service: api@internal
+    dashboard:
+      entryPoints: [hc-admin]
+      rule: 'PathPrefix(`/dashboard`) || PathPrefix(`/debug`)'
+      service: api@internal
+      middlewares: [dashboard-auth, security-headers]
+    fixture-router:
+      entryPoints: [web]
+      rule: 'Host(`fixture.localhost`) && Path(`/ping`)'
+      service: fixture-service
+      middlewares: [fixture-headers]
+    app-http:
+      entryPoints: [web]
+      rule: 'Host(`app.isolated.test`) && PathPrefix(`/app`)'
+      service: webapp-lb
+      middlewares: [app-auth, security-headers, app-ratelimit, strip-app]
+    app-https:
+      entryPoints: [websecure]
+      rule: 'Host(`app.isolated.test`) && PathPrefix(`/app`)'
+      service: webapp-lb
+      middlewares: [app-auth, security-headers, app-ratelimit, strip-app]
+      tls: {}
+    app-root:
+      entryPoints: [websecure]
+      rule: 'Host(`app.isolated.test`) && Path(`/`)'
+      service: webapp-lb
+      middlewares: [security-headers]
+      tls: {}
+
+  services:
+    fixture-service:
+      loadBalancer:
+        servers:
+          - url: http://127.0.0.1:9081
+    webapp-lb:
+      loadBalancer:
+        healthCheck:
+          path: /
+          interval: 10s
+          timeout: 3s
+        servers:
+          - url: http://webapp-a:8080
+          - url: http://webapp-b:8080
+
+  middlewares:
+    fixture-headers:
+      headers:
+        customResponseHeaders:
+          X-HomeControl-Fixture: phase4
+    dashboard-auth:
+      basicAuth:
+        realm: hc-isolated-dashboard
+        usersFile: /config/auth/users.htpasswd
+    app-auth:
+      basicAuth:
+        realm: hc-isolated-app
+        usersFile: /config/auth/users.htpasswd
+    security-headers:
+      headers:
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        frameDeny: true
+        contentTypeNosniff: true
+        browserXssFilter: true
+        referrerPolicy: no-referrer
+        customResponseHeaders:
+          X-Robots-Tag: noindex
+          X-HomeControl-Proxy: isolated-prod-shape
+    app-ratelimit:
+      rateLimit:
+        average: 20
+        burst: 40
+        period: 1s
+    strip-app:
+      stripPrefix:
+        prefixes:
+          - /app
