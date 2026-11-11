@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { labels, composePreview } from '../src/model.mjs';
 import { createAdapter } from '../src/adapter.mjs';
 import { handler } from '../src/server.mjs';
-import { mkdtempSync, writeFileSync, symlinkSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, symlinkSync, rmSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readToken, validateToken } from '../src/secrets.mjs';
@@ -213,6 +213,7 @@ test('secret file loader accepts private regular file and rejects unsafe inputs 
     assert.equal(readToken(good), token);
     const bad = join(directory, 'world-readable');
     writeFileSync(bad, token, { mode: 0o644 });
+    chmodSync(bad, 0o644);
     const link = join(directory, 'symlink');
     symlinkSync(good, link);
     const oversized = join(directory, 'large');
@@ -239,5 +240,34 @@ test('router view exposes only bounded single-host routing metadata', async () =
   const safe=await hostile.inventory();
   assert.equal(JSON.stringify(safe).includes('PRIVATE'),false);
   assert.equal(safe.routers[0].tls,undefined);
+});
+
+test('router view keeps Host Path and PathPrefix file-provider rules', async () => {
+  const {sanitizeRule} = await import('../src/adapter.mjs');
+  for (const rule of [
+    'Host(`app.isolated.test`) && PathPrefix(`/app`)',
+    'Host(`fixture.localhost`) && Path(`/ping`)',
+    'PathPrefix(`/api`)',
+    'PathPrefix(`/dashboard`) || PathPrefix(`/debug`)',
+    'Host(`app.isolated.test`) && Path(`/`)',
+  ]) assert.equal(sanitizeRule(rule), rule, rule);
+  assert.equal(sanitizeRule('Host(`a.example.com`) || Host(`b.example.com`)'), 'Host(`a.example.com`) || Host(`b.example.com`)');
+  for (const rule of [
+    'Headers(`Authorization`,`PRIVATE`)',
+    'HostRegexp(`.*\\.evil`)',
+    'PathPrefix(`/../etc`)',
+    'Query(`q`,`x`)',
+    'Host(`a.example.com`) && Headers(`X`,`y`)',
+  ]) assert.equal(sanitizeRule(rule), undefined, rule);
+  const adapter = createAdapter('http://traefik.test', async url => json(url.pathname.endsWith('/routers') ? [
+    {name:'app-http@file',provider:'file',status:'enabled',rule:'Host(`app.isolated.test`) && PathPrefix(`/app`)',service:'webapp-lb@file',entryPoints:['web']},
+    {name:'hc-api@file',provider:'file',status:'enabled',rule:'PathPrefix(`/api`)',service:'api@internal',entryPoints:['hc-admin']},
+    {name:'evil@file',provider:'file',status:'enabled',rule:'Headers(`Authorization`,`PRIVATE`)',password:'PRIVATE'},
+  ] : []));
+  const inventory = await adapter.inventory();
+  assert.equal(inventory.routers[0].rule, 'Host(`app.isolated.test`) && PathPrefix(`/app`)');
+  assert.equal(inventory.routers[1].rule, 'PathPrefix(`/api`)');
+  assert.equal(inventory.routers[2].rule, undefined);
+  assert.equal(JSON.stringify(inventory).includes('PRIVATE'), false);
 });
 
