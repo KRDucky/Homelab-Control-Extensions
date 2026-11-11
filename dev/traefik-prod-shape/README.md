@@ -32,8 +32,9 @@ Reverse Proxy module should manage later:
 - Prometheus metrics on internal `:9100`
 - JSON logs + JSON access logs on tmpfs
 
-Phase 4/7-r2 routers (`hc-api`, `fixture-router`, `ping@internal`) stay, so
-CORE API 67/67 should still match.
+Phase 4/7-r2 routers (`hc-api`, `fixture-router`, `ping@internal`) stay.
+Adding webapps and routers changes two `api-r2.mjs` literals (workload count 4→6
+and `host_unverified` names 3→8 routers). Apply stays unavailable.
 
 ACME / Let's Encrypt is **not** enabled. Isolated network cannot complete
 HTTP-01 or DNS-01. File certs are the certificate manager for this stack.
@@ -47,9 +48,16 @@ User `isolated-viewer`. Password is `isolated-test`. Hash only is in
 
 Same `F` as Phase 9, plus this file **last**:
 
+Compose resolves overlay bind `source:` against `--project-directory`
+(`dev/traefik-live-test`), not this file. The default
+`${HC_PROD_SHAPE_DIR:-../traefik-prod-shape}` is the sibling directory. For a
+throwaway clone, export `HC_PROD_SHAPE_DIR` to that clone's
+`dev/traefik-prod-shape`. Do not bind from `/tmp` if the clone can be deleted.
+
 ```sh
 export HC_LIVE_SECRET_DIR=/home/ian/Projects/.homecontrol-traefik-test-secrets
 EXT=/home/ian/Projects/Homelab-Control-Extensions
+# optional: export HC_PROD_SHAPE_DIR=/path/to/dev/traefik-prod-shape
 F="--project-directory $EXT/dev/traefik-live-test \
   -f $EXT/dev/traefik-live-test/compose.yaml \
   -f $EXT/dev/traefik-phase6/compose.override.yaml \
@@ -65,11 +73,22 @@ Recreate Traefik + start webapps. Do **not** recreate CORE:
 
 ```sh
 docker --context rootless compose $F up -d --no-deps --pull never --wait --wait-timeout 90 traefik webapp-a webapp-b
-docker --context rootless compose $F up -d --no-deps --pull never --wait --wait-timeout 90 plugin
 ```
 
-The Node 22.23.3 image digest must already exist locally (`pull_policy: never`).
-It is the same digest CORE artifact builds pull.
+Pinned Node image (`pull_policy: never`):
+
+`docker.io/library/node:22.23.3-bookworm@sha256:69a5713e7f4997e96d579aafd78734810e0dac0dd5ee4621d72c27a2891a4088`
+
+If it is missing, pull **that digest** first. Do not pull `:latest`.
+
+Live Host-routed checks must use `node:http` (`live-check.mjs`, `extra-check.mjs`).
+Node `fetch` (undici) drops a caller-set `Host` header. For auth extras:
+
+```sh
+export HC_ISO_PW=isolated-test   # isolated test only
+docker --context rootless exec -e HC_ISO_PW -i hc-traefik-plugin-test \
+  node --input-type=module < dev/traefik-prod-shape/extra-check.mjs
+```
 
 ## Offline check
 

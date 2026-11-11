@@ -47,8 +47,18 @@ test('compose overlay remaps Traefik to /config and adds webapps', () => {
   assert.match(y, /target: \/config\/dynamic/);
   assert.match(y, /container_name: hc-traefik-webapp-a/);
   assert.match(y, /container_name: hc-traefik-webapp-b/);
+  assert.match(y, /HC_PROD_SHAPE_DIR/);
+  assert.match(y, /\.\.\/traefik-prod-shape/);
+  assert.doesNotMatch(y, /source: \.\//);
   assert.doesNotMatch(y, /ports:/);
   assert.doesNotMatch(y, /docker\.sock/);
+});
+
+test('live-check uses node:http for Host-routed probes', () => {
+  const y = read('live-check.mjs');
+  assert.match(y, /from 'node:http'/);
+  assert.match(y, /http\.request/);
+  assert.doesNotMatch(y, /fetch\([^)]*Host:/);
 });
 
 test('file cert and users hash exist', () => {

@@ -5,6 +5,10 @@
 # Phase 6/7/8/9 overlays. Recreates the Traefik fixture mounts to /config
 # and adds two simple web apps. No published ports. No Docker provider.
 # Do not recreate CORE.
+#
+# Bind sources are resolved against --project-directory (live-test), not this
+# file. Default ../traefik-prod-shape is the sibling of live-test. Override
+# with HC_PROD_SHAPE_DIR for a throwaway clone.
 
 x-webapp: &webapp
   user: '1000:1000'
@@ -42,22 +46,22 @@ services:
       - /var/log/traefik:uid=1000,gid=1000,mode=0700,size=16777216
     volumes:
       - type: bind
-        source: ./traefik.yml
+        source: "${HC_PROD_SHAPE_DIR:-../traefik-prod-shape}/traefik.yml"
         target: /config/traefik.yml
         read_only: true
         bind: {create_host_path: false}
       - type: bind
-        source: ./dynamic
+        source: "${HC_PROD_SHAPE_DIR:-../traefik-prod-shape}/dynamic"
         target: /config/dynamic
         read_only: true
         bind: {create_host_path: false}
       - type: bind
-        source: ./certs
+        source: "${HC_PROD_SHAPE_DIR:-../traefik-prod-shape}/certs"
         target: /config/certs
         read_only: true
         bind: {create_host_path: false}
       - type: bind
-        source: ./auth
+        source: "${HC_PROD_SHAPE_DIR:-../traefik-prod-shape}/auth"
         target: /config/auth
         read_only: true
         bind: {create_host_path: false}
