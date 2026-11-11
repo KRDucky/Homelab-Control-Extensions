@@ -38,6 +38,20 @@ function networkError(error) {
   return new ApiError('network_error');
 }
 
+const MATCHER = /^(?:Host\(`[a-z0-9.-]{1,253}`\)|Path(?:Prefix)?\(`\/[A-Za-z0-9._~/-]{0,200}`\))$/;
+
+export function sanitizeRule(rule) {
+  if (typeof rule !== 'string' || rule.length < 8 || rule.length > 512 || rule.includes('..')) return;
+  const tokens = rule.split(/ (\|\||&&) /);
+  if (tokens.length < 1 || tokens.length > 9 || tokens.length % 2 === 0) return;
+  for (let i = 0; i < tokens.length; i++) {
+    if (i % 2 === 0) {
+      if (!MATCHER.test(tokens[i])) return;
+    } else if (tokens[i] !== '&&' && tokens[i] !== '||') return;
+  }
+  return rule;
+}
+
 export function createAdapter(endpoint, fetcher = fetch) {
   const base = new URL(endpoint);
   if (!['http:', 'https:'].includes(base.protocol) || base.username || base.password ||
@@ -82,9 +96,10 @@ export function createAdapter(endpoint, fetcher = fetch) {
       // Never expose BasicAuth hashes, headers, upstream URLs or raw configuration.
       const out = Object.fromEntries(['name', 'provider', 'status'].map(key =>
         [key, typeof row[key] === 'string' ? row[key].slice(0, 280) : 'unknown']));
-      // Deliberately support only the single-host rule model; never forward raw rules.
+      // Host / Path / PathPrefix only, joined by && and ||. Never forward raw rules.
       if (path === paths.routers) {
-        if (typeof row.rule === 'string' && /^Host\(`([a-z0-9.-]{1,253})`\)$/.test(row.rule)) out.rule = row.rule;
+        const rule = sanitizeRule(row.rule);
+        if (rule) out.rule = rule;
         if (typeof row.service === 'string' && /^[a-zA-Z0-9_.@-]{1,280}$/.test(row.service)) out.service = row.service;
         if (Array.isArray(row.entryPoints) && row.entryPoints.length <= 32 && row.entryPoints.every(v => typeof v === 'string' && /^[a-zA-Z0-9_-]{1,63}$/.test(v))) out.entrypoints = row.entryPoints;
         if (Object.hasOwn(row, 'tls')) out.tls = row.tls !== null && row.tls !== false;

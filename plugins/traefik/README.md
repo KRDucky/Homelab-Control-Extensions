@@ -125,8 +125,9 @@ Neither `EXPOSE 9080` nor an internal listener publishes a host port.
 
 ### Phase 5 inventory metadata
 
-Router inventory may additionally include a sanitized single-host `rule`, service
-reference, entrypoints and an explicitly known TLS boolean. Complex rules are
+Router inventory may include a sanitized `rule` of `Host`, `Path`, and
+`PathPrefix` matchers joined by `&&` / `||`, plus service reference, entrypoints
+and an explicitly known TLS boolean. Other matchers (headers, regex, query) are
 omitted and must be treated as unknown. Raw configuration, upstream URLs,
 authentication middleware values and credentials are never forwarded. Existing
 running helper images retain their old identity/status-only response until a
