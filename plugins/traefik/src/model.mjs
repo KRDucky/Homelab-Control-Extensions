@@ -2,16 +2,30 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 const identifier = /^[a-z][a-z0-9-]{0,62}$/;
+const pathPrefix = /^\/[A-Za-z0-9._~/-]{0,200}$/;
+const backendHost = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}$/;
 const object = value => value && Object.getPrototypeOf(value) === Object.prototype;
 const isIdentifier = value => typeof value === 'string' && identifier.test(value);
+const modelKeys = ['name', 'host', 'port', 'entrypoint', 'protocol', 'upstreamScheme', 'tls', 'path'];
+
+function normalized(model) {
+  if (!object(model) || Object.keys(model).some(key => !modelKeys.includes(key))) {
+    throw new Error('Unexpected configuration fields');
+  }
+  const out = { ...model };
+  if (out.path === '' || out.path === undefined) delete out.path;
+  return out;
+}
+
+export function ruleOf(model) {
+  const host = `Host(\`${model.host}\`)`;
+  return model.path ? `${host} && PathPrefix(\`${model.path}\`)` : host;
+}
 
 // Pure configuration preview: incoming TLS and upstream scheme are independent.
 export function labels(model) {
-  if (!object(model) || Object.keys(model).some(key =>
-    !['name', 'host', 'port', 'entrypoint', 'protocol', 'upstreamScheme', 'tls'].includes(key))) {
-    throw new Error('Unexpected configuration fields');
-  }
-  const { name, host, port, entrypoint, protocol, upstreamScheme, tls } = model;
+  model = normalized(model);
+  const { name, host, port, entrypoint, protocol, upstreamScheme, tls, path } = model;
   if (!isIdentifier(name) || !isIdentifier(entrypoint)) throw new Error('Invalid identifier');
   if (typeof host !== 'string' || host.length > 253 || !host.includes('.') ||
       !host.split('.').every(part => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(part))) {
@@ -27,11 +41,14 @@ export function labels(model) {
       (tls.certificateResolver !== undefined && !isIdentifier(tls.certificateResolver)))) {
     throw new Error('HTTPS requires TLS object with optional certificateResolver');
   }
+  if (path !== undefined && (typeof path !== 'string' || path.includes('..') || !pathPrefix.test(path))) {
+    throw new Error('Invalid path prefix');
+  }
   const router = `traefik.http.routers.${name}`;
   const service = `traefik.http.services.${name}`;
   const result = {
     'traefik.enable': 'true',
-    [`${router}.rule`]: `Host(\`${host}\`)`,
+    [`${router}.rule`]: ruleOf(model),
     [`${router}.entrypoints`]: entrypoint,
     [`${router}.service`]: name,
     [`${router}.tls`]: String(protocol === 'https'),
@@ -45,4 +62,46 @@ export function labels(model) {
 // JSON is a YAML-compatible mapping usable under a user-managed Compose service.
 export function composePreview(model) {
   return { labels: labels(model) };
+}
+
+// File-provider fragment for Traefik that has Docker labels disabled.
+export function filePreview(model, backend) {
+  const mapping = labels(model);
+  model = normalized(model);
+  if (typeof backend !== 'string' || !backendHost.test(backend)) throw new Error('Invalid backend hostname');
+  const router = { rule: ruleOf(model), entryPoints: [model.entrypoint], service: model.name };
+  if (model.protocol === 'https') {
+    router.tls = model.tls?.certificateResolver ? { certResolver: model.tls.certificateResolver } : {};
+  }
+  const file = {
+    http: {
+      routers: { [model.name]: router },
+      services: {
+        [model.name]: {
+          loadBalancer: {
+            servers: [{ url: `${model.upstreamScheme}://${backend}:${model.port}` }],
+          },
+        },
+      },
+    },
+  };
+  const tlsLines = router.tls === undefined ? [] : router.tls.certResolver
+    ? ['      tls:', `        certResolver: ${router.tls.certResolver}`]
+    : ['      tls: {}'];
+  const yaml = [
+    'http:',
+    '  routers:',
+    `    ${model.name}:`,
+    `      rule: '${router.rule}'`,
+    '      entryPoints:',
+    `        - ${model.entrypoint}`,
+    `      service: ${model.name}`,
+    ...tlsLines,
+    '  services:',
+    `    ${model.name}:`,
+    '      loadBalancer:',
+    '        servers:',
+    `          - url: ${model.upstreamScheme}://${backend}:${model.port}`,
+  ].join('\n');
+  return { labels: mapping, file, yaml };
 }

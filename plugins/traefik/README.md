@@ -1,9 +1,8 @@
 # Traefik development helper
 
-Scaffold for **Networking → Reverse Proxy → Traefik**, maintained in the Extensions
-repository. It is not yet an installable HomeControl plugin. The core checkout has no
-plugin SDK; the cached upstream SDK accepts only compiled declarative UI contributions
-and does not load containers. See the integration plan in `codex-reports/` beside the repositories.
+GET-only sidecar for **Networking → Reverse Proxy → Traefik**. HomeControl ships Traefik
+as a compiled first-party `networking` module plus this helper; there is no executable
+`.hlplugin` payload (ADR 0013). The helper never applies configuration.
 
 ## Layout
 
@@ -28,7 +27,8 @@ helper runtime; the main backend remains Go and production UI remains compiled R
 | --- | --- |
 | `GET /v1/inventory` | `{schemaVersion:1, routers:[{name,provider,status}], services:[...], middlewares:[...]}` |
 | `GET /v1/diagnostics` | Per-resource safe connectivity codes/hints and available/degraded/unavailable state |
-| `POST /v1/labels` | Input `{name,host,port,entrypoint,protocol,upstreamScheme,tls?}`; output `{labels:{key:string}}` |
+| `POST /v1/labels` | Input `{name,host,port,entrypoint,protocol,upstreamScheme,tls?,path?}`; output `{labels:{key:string}}` |
+| `POST /v1/file-preview` | Same model plus `backend` hostname; output `{labels,file,yaml}` for a file-provider fragment |
 | `GET /`, `/dashboard.js` | Development preview only; no HomeControl login replacement |
 
 API requests require `Authorization: Bearer <helper token>`. The token is read from
@@ -47,15 +47,18 @@ The deployment review must verify the configured origin belongs to the private t
 Traefik container. Outbound destinations are not independently IP-filtered by this scaffold.
 Authenticated upstream Traefik APIs and custom trust roots are future work.
 
-Labels are a pure preview for a **user-managed service**, not for the helper. JSON
-mapping output can be used as YAML under a Compose service's `labels` key. The model
-supports one Host rule, explicit entrypoint/service port, incoming `protocol` and
-independent `upstreamScheme` (`http` or `https`). HTTPS requires a `tls` object; `{}`
-references the existing/default certificate store, while `{certificateResolver:"staging"}`
-explicitly references an existing resolver. HTTP forbids TLS settings. No automatic
-HTTP redirect, certificate verification bypass, new resolver provisioning or arbitrary
-rule interpolation is supported. Applying a resolver label later may trigger issuance.
-A router TLS block can replace entrypoint TLS defaults: review resulting options. Applying labels or enabling a Docker provider is outside scope.
+Labels are a pure preview for a **user-managed Compose service**. File YAML is a pure
+preview for Traefik's file provider (`/config/dynamic`). JSON mapping output can be used
+as YAML under a Compose service's `labels` key. The model supports one Host rule, optional
+`PathPrefix`, explicit entrypoint/service port, incoming `protocol` and independent
+`upstreamScheme` (`http` or `https`). File preview also needs a Docker DNS `backend`
+hostname for `scheme://backend:port`. HTTPS requires a `tls` object; `{}` references the
+existing/default certificate store, while `{certificateResolver:"staging"}` explicitly
+references an existing resolver. HTTP forbids TLS settings. No automatic HTTP redirect,
+certificate verification bypass, new resolver provisioning or arbitrary rule interpolation
+is supported. Applying a resolver label later may trigger issuance. A router TLS block can
+replace entrypoint TLS defaults: review resulting options. Applying labels, writing dynamic
+YAML, or enabling a Docker provider is outside scope.
 
 ## Local checks
 
@@ -100,7 +103,7 @@ with `HC_LISTEN_HOST=127.0.0.1` (default), a reachable reviewed Traefik origin a
 file, using `node src/server.mjs`; no server was started during this task.
 
 This helper is a HomeControl extension proposal, **not a Traefik middleware plugin**.
-There is deliberately no fabricated `.hlplugin` manifest claiming unsupported capabilities.
+There is deliberately no `.hlplugin` manifest; Traefik is compiled into CORE.
 
 
 ## Rootless secrets and readiness

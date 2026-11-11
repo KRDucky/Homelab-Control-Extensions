@@ -25,10 +25,14 @@ element('diagnose').onclick = async () => {
 element('generator').onsubmit = async event => {
   event.preventDefault();
   element('labels').textContent = '';
+  element('file').textContent = '';
   const model = Object.fromEntries(new FormData(event.target));
   model.port = Number(model.port);
   const resolver = model.certificateResolver;
+  const backend = model.backend;
   delete model.certificateResolver;
+  delete model.backend;
+  if (!model.path) delete model.path;
   if (model.protocol === 'https') model.tls = resolver ? { certificateResolver: resolver } : {};
   else if (resolver) {
     element('labels').textContent = 'Select HTTPS to reference a certificate resolver.';
@@ -38,5 +42,8 @@ element('generator').onsubmit = async event => {
     element('labels').textContent = JSON.stringify(await request('/v1/labels', {
       method: 'POST', body: JSON.stringify(model),
     }), null, 2);
+    element('file').textContent = (await request('/v1/file-preview', {
+      method: 'POST', body: JSON.stringify({ ...model, backend }),
+    })).yaml;
   } catch (error) { element('labels').textContent = error.message; }
 };
