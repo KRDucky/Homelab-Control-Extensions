@@ -1,0 +1,67 @@
+# SPDX-FileCopyrightText: 2026 Homelab Control Extensions contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Isolated MediaMouse test only. Not production. No published ports.
+# Mounted at /config/traefik.yml.
+
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+entryPoints:
+  hc-admin:
+    address: ':9081'
+  web:
+    address: ':8080'
+  websecure:
+    address: ':8443'
+  metrics:
+    address: ':9100'
+
+api:
+  dashboard: true
+  insecure: false
+
+ping:
+  entryPoint: hc-admin
+
+metrics:
+  prometheus:
+    entryPoint: metrics
+    addEntryPointsLabels: true
+    addRoutersLabels: true
+    addServicesLabels: true
+    buckets:
+      - 0.1
+      - 0.3
+      - 1.2
+      - 5
+
+log:
+  level: INFO
+  format: json
+  filePath: /var/log/traefik/traefik.log
+
+accessLog:
+  filePath: /var/log/traefik/access.log
+  format: json
+  bufferingSize: 50
+  filters:
+    statusCodes:
+      - '200-599'
+  fields:
+    defaultMode: keep
+    headers:
+      defaultMode: drop
+      names:
+        User-Agent: keep
+        X-Forwarded-For: redact
+
+providers:
+  file:
+    directory: /config/dynamic
+    watch: false
+  # Docker provider stays off. File provider only.
+
+# ACME is not used on this isolated network. Certificates are files under /config/certs.
+# A production host would add certificatesResolvers with DNS-01 here after review.
