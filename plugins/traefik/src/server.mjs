@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { timingSafeEqual } from 'node:crypto';
 import { createAdapter } from './adapter.mjs';
-import { composePreview } from './model.mjs';
+import { composePreview, filePreview } from './model.mjs';
 import { readToken, validateToken } from './secrets.mjs';
 
 const ui = readFileSync(new URL('../ui/index.html', import.meta.url));
@@ -36,7 +36,7 @@ export function handler(adapter, token) {
       try { return send(200, await adapter.diagnostics()); }
       catch { return send(502, { error: 'diagnostics_unavailable' }); }
     }
-    if (req.method === 'POST' && req.url === '/v1/labels') {
+    if (req.method === 'POST' && (req.url === '/v1/labels' || req.url === '/v1/file-preview')) {
       if (req.headers['content-type'] !== 'application/json') return send(415, { error: 'expected_json' });
       let body = '';
       try {
@@ -44,7 +44,12 @@ export function handler(adapter, token) {
           body += chunk;
           if (Buffer.byteLength(body) > 4096) return send(413, { error: 'request_too_large' });
         }
-        return send(200, composePreview(JSON.parse(body)));
+        const parsed = JSON.parse(body);
+        if (req.url === '/v1/file-preview') {
+          const { backend, ...model } = parsed;
+          return send(200, filePreview(model, backend));
+        }
+        return send(200, composePreview(parsed));
       } catch { return send(400, { error: 'invalid_model' }); }
     }
     return send(404, { error: 'not_found' });

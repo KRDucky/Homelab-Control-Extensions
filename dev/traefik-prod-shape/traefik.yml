@@ -60,7 +60,7 @@ accessLog:
 providers:
   file:
     directory: /config/dynamic
-    watch: false
+    watch: true
   # Docker provider stays off. File provider only.
 
 # ACME is not used on this isolated network. Certificates are files under /config/certs.

@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Readable } from 'node:stream';
 import { readFileSync } from 'node:fs';
-import { labels, composePreview } from '../src/model.mjs';
+import { labels, composePreview, filePreview } from '../src/model.mjs';
 import { createAdapter } from '../src/adapter.mjs';
 import { handler } from '../src/server.mjs';
 import { mkdtempSync, writeFileSync, symlinkSync, rmSync, chmodSync } from 'node:fs';
@@ -28,6 +28,20 @@ test('Compose preview has explicit router/service binding and string labels', ()
     'traefik.http.services.demo.loadbalancer.server.port': '8080',
     'traefik.http.services.demo.loadbalancer.server.scheme': 'http',
   } });
+});
+test('optional PathPrefix joins Host and file YAML names the backend', () => {
+  const withPath = { ...model, path: '/app' };
+  assert.equal(labels(withPath)['traefik.http.routers.demo.rule'], 'Host(`demo.localhost`) && PathPrefix(`/app`)');
+  const preview = filePreview(withPath, 'webapp-a');
+  assert.equal(preview.file.http.routers.demo.rule, 'Host(`demo.localhost`) && PathPrefix(`/app`)');
+  assert.equal(preview.file.http.services.demo.loadBalancer.servers[0].url, 'http://webapp-a:8080');
+  assert.match(preview.yaml, /url: http:\/\/webapp-a:8080/);
+  assert.match(preview.yaml, /PathPrefix\(`\/app`\)/);
+  for (const bad of ['../etc', 'app', '/app?x=1', '/app with space']) {
+    assert.throws(() => labels({ ...model, path: bad }));
+  }
+  assert.throws(() => filePreview(model, 'http://evil'));
+  assert.throws(() => filePreview(model, '-bad'));
 });
 test('reject injected rules, label keys, invalid ports and unexpected model properties', () => {
   for (const changes of [
@@ -102,12 +116,22 @@ test('helper returns inventory and bounded validated label previews', async () =
   assert.equal((await call('/v1/labels', { method: 'POST', body: 'x'.repeat(4097) })).status, 413);
   assert.equal((await call('/v1/labels', { method: 'POST', contentType: 'text/plain' })).status, 415);
 });
+test('helper returns file-provider YAML without an apply route', async () => {
+  const result = await call('/v1/file-preview', { method: 'POST', body: JSON.stringify({ ...model, path: '/app', backend: 'web' }) });
+  assert.equal(result.status, 200);
+  const body = JSON.parse(result.body);
+  assert.equal(body.file.http.services.demo.loadBalancer.servers[0].url, 'http://web:8080');
+  assert.match(body.yaml, /entryPoints:/);
+  assert.equal((await call('/v1/file-preview', { method: 'POST', body: JSON.stringify(model) })).status, 400);
+  assert.equal((await call('/v1/apply', { method: 'POST', body: '{}' })).status, 404);
+});
 test('dashboard is available as a local preview with safe text rendering', async () => {
   const page = await call('/');
   assert.equal(page.status, 200);
   assert.match(page.headers['Content-Security-Policy'], /frame-ancestors 'none'/);
   const script = (await call('/dashboard.js')).body.toString();
   assert.ok(script.includes('textContent'));
+  assert.ok(script.includes('/v1/file-preview'));
   assert.ok(!script.includes('innerHTML'));
 });
 test('deployment scaffold has no socket mount, host publication or Traefik lifecycle', () => {
