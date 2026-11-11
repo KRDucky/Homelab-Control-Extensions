@@ -57,8 +57,8 @@ existing/default certificate store, while `{certificateResolver:"staging"}` expl
 references an existing resolver. HTTP forbids TLS settings. No automatic HTTP redirect,
 certificate verification bypass, new resolver provisioning or arbitrary rule interpolation
 is supported. Applying a resolver label later may trigger issuance. A router TLS block can
-replace entrypoint TLS defaults: review resulting options. Applying labels, writing dynamic
-YAML, or enabling a Docker provider is outside scope.
+replace entrypoint TLS defaults: review resulting options. This helper never applies labels,
+writes dynamic YAML, or enables a Docker provider. CORE file-apply writes generated YAML.
 
 ## Local checks
 

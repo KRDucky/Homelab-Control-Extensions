@@ -1,0 +1,43 @@
+# SPDX-FileCopyrightText: 2026 Homelab Control Extensions contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Isolated MediaMouse test only. Merge AFTER live-test compose.yaml and the
+# Phase 6/7/8 overlays. Recreates CORE only. Do not --remove-orphans.
+# Bind sources resolve against --project-directory (live-test).
+services:
+  core:
+    image: homecontrol/traefik-core:file-apply
+    pull_policy: never
+    command:
+      - -listen
+      - 127.0.0.1:9180
+      - -dev-insecure-http
+      - -users-file
+      - /state/users.json
+      - -state-db
+      - /state/state.db
+      - -broker-socket=
+      - -modules-config
+      - /opt/live-test/modules.json
+      - -files-config
+      - /opt/live-test/files.json
+      - -traefik-helper-origin
+      - http://traefik-plugin:9080
+      - -traefik-helper-token-file
+      - /run/secrets/helper_token
+      - -docker-metadata-socket
+      - /run/hc-metadata/broker.sock
+      - -docker-metadata-token-file
+      - /run/secrets/docker_metadata_token
+      - -docker-metadata-server-uid
+      - '0'
+      - -docker-metadata-routing-config
+      - /opt/live-test/docker-metadata-routing.json
+      - -traefik-dynamic-dir
+      - /config/dynamic
+    volumes:
+      - type: bind
+        source: "${HC_PROD_SHAPE_DIR:-../../codex-reports/traefik-prod-shape}/dynamic"
+        target: /config/dynamic
+        read_only: false
+        bind: {create_host_path: false}
