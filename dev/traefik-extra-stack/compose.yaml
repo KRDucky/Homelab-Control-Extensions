@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: 2026 Homelab Control Extensions contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Isolated extra Compose application for Traefik reverse-proxy GUI tests.
+# Separate project from hc-traefik-live. No published ports. Joins the
+# existing internal hc-traefik-test network.
+name: hc-notes
+services:
+  notes:
+    image: docker.io/library/node:22.23.3-bookworm@sha256:69a5713e7f4997e96d579aafd78734810e0dac0dd5ee4621d72c27a2891a4088
+    pull_policy: never
+    container_name: hc-notes-web
+    user: '1000:1000'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    mem_limit: 128m
+    cpus: 0.25
+    restart: 'no'
+    init: true
+    working_dir: /tmp
+    tmpfs:
+      - /tmp:uid=1000,gid=1000,mode=0700,size=16777216
+    environment: {HC_WEBAPP: notes}
+    expose: ['8080']
+    networks: [proxy]
+    command:
+      - node
+      - --input-type=module
+      - -e
+      - |
+        const name = process.env.HC_WEBAPP;
+        const s = await import('node:http');
+        s.createServer((q, r) => {
+          r.writeHead(200, {'Content-Type': 'text/plain; charset=utf-8'});
+          r.end(name + ' ' + q.url + '\n');
+        }).listen(8080, '0.0.0.0');
+    healthcheck:
+      test: ['CMD', 'node', '-e', 'fetch("http://127.0.0.1:8080/").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+networks:
+  proxy:
+    external: true
+    name: hc-traefik-test

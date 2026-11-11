@@ -6,11 +6,11 @@ import {grantFixtureScope} from './prepare-users.mjs';
 test('only private fixture viewer scopes change; source and password hashes preserved',()=>{
  const source={version:1,users:[{username:'traefik-viewer',password_hash:'TEST-HASH',scopes:['networking.proxy.read']},{username:'traefik-denied',password_hash:'OTHER-HASH',scopes:['system.read']}]};
  const before=JSON.stringify(source);const out=grantFixtureScope(source);
- assert.equal(JSON.stringify(source),before);assert.deepEqual(out.users[0].scopes,['networking.proxy.read','docker.compose.read','platforms.read']);assert.equal(out.users[0].password_hash,source.users[0].password_hash);assert.deepEqual(out.users[1],source.users[1]);assert.deepEqual(grantFixtureScope(out),out);
+ assert.equal(JSON.stringify(source),before);assert.deepEqual(out.users[0].scopes,['networking.proxy.read','docker.compose.read','platforms.read','networking.proxy.apply']);assert.equal(out.users[0].password_hash,source.users[0].password_hash);assert.deepEqual(out.users[1],source.users[1]);assert.deepEqual(grantFixtureScope(out),out);
 });
-test('no production, write, Podman or Kubernetes scope is granted',()=>{
+test('no production, Docker-label write, Podman or Kubernetes scope is granted',()=>{
  const out=grantFixtureScope({version:1,users:[{username:'traefik-viewer',scopes:['networking.proxy.read']}]});
- assert.deepEqual(out.users[0].scopes.filter(s=>!['networking.proxy.read','docker.compose.read','platforms.read'].includes(s)),[]);
- for(const s of out.users[0].scopes)assert.ok(!/(write|apply|deploy|operate|configure|podman|kubernetes|admin)/.test(s),s);
+ assert.deepEqual(out.users[0].scopes.filter(s=>!['networking.proxy.read','docker.compose.read','platforms.read','networking.proxy.apply'].includes(s)),[]);
+ for(const s of out.users[0].scopes)assert.ok(!/(write|deploy|operate|configure|podman|kubernetes|admin)/.test(s)||s==='networking.proxy.apply',s);
 });
 test('missing/disabled/unprivileged viewer fails closed',()=>{for(const source of [{version:0,users:[]},{version:1,users:[]},{version:1,users:[{username:'traefik-viewer',scopes:[]}]},{version:1,users:[{username:'traefik-viewer',disabled:true,scopes:['networking.proxy.read']}]}])assert.throws(()=>grantFixtureScope(source))});
