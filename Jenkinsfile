@@ -73,9 +73,10 @@ pipeline {
     stage('traefik helper') {
       steps {
         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') { script { tracked(failedStages, env.STAGE_NAME) {
-          // The commands from plugins/traefik/build-environment.md. The test stage runs the tests.
+          // The commands from plugins/traefik/build-environment.md. The test stage runs the tests,
+          // never from the build cache.
           sh '''
-            docker build --progress=plain --label hc-ci=1 --target test -t "hc-ci-traefik-test:$BUILD_TAG" plugins/traefik
+            docker build --progress=plain --label hc-ci=1 --no-cache-filter test --target test -t "hc-ci-traefik-test:$BUILD_TAG" plugins/traefik
             docker build --progress=plain --label hc-ci=1 --target runtime -t "hc-ci-traefik-runtime:$BUILD_TAG" plugins/traefik
           '''
         } } }
