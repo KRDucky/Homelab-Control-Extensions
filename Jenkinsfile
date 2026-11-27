@@ -18,14 +18,13 @@ def PYYAML_VERSION = '6.0.3'
 def CORE_REPO = 'https://github.com/KRDucky/Homelab-Control.git'
 
 // Streams the checkout into a fresh container and runs script there as an unprivileged user.
-// The Node image is the one plugins/traefik/Dockerfile pins, read from that file.
 def inContainer(String image, String script, boolean network = false) {
   withEnv(["CI_IMAGE=${image}", "CI_SCRIPT=${script}", "CI_NET=${network ? 'bridge' : 'none'}"]) {
     sh '''
       docker info --format '{{json .SecurityOptions}}' | grep -q rootless \
         || { echo "DOCKER_HOST is not a rootless Docker daemon; refusing" >&2; exit 2; }
       tar -C . -cf - . | docker run --rm -i --network "$CI_NET" --user 1000:1000 \
-        --cap-drop ALL --security-opt no-new-privileges --cpus 2 --memory 2g --pids-limit 1024 \
+        --cap-drop ALL --security-opt no-new-privileges --cpus 2 --memory 2g --pids-limit 1024 --init \
         --label hc-ci=1 --label "hc-ci.build=$BUILD_TAG" --env CI_SCRIPT --env HOME=/tmp --entrypoint sh "$CI_IMAGE" \
         -ec 'mkdir -p /tmp/src && tar -xf - -C /tmp/src --no-same-owner && cd /tmp/src && eval "$CI_SCRIPT"'
     '''
@@ -43,6 +42,7 @@ def tracked(List failedStages, String stage, Closure body) {
   }
 }
 
+// The Node image that plugins/traefik/Dockerfile pins, read from that file.
 def nodeImage() {
   return sh(returnStdout: true, script: "sed -n 's/^FROM \\([^ ]*\\) AS base\$/\\1/p' plugins/traefik/Dockerfile").trim()
 }
