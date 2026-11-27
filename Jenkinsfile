@@ -32,6 +32,17 @@ def inContainer(String image, String script, boolean network = false) {
   }
 }
 
+// Runs body; when body itself fails, names the stage in failedStages and fails it. A stage's
+// post { failure } also fires after an earlier stage has failed the build, so it cannot be used.
+def tracked(List failedStages, String stage, Closure body) {
+  try {
+    body()
+  } catch (e) {
+    failedStages << stage
+    throw e
+  }
+}
+
 def nodeImage() {
   return sh(returnStdout: true, script: "sed -n 's/^FROM \\([^ ]*\\) AS base\$/\\1/p' plugins/traefik/Dockerfile").trim()
 }
@@ -57,38 +68,35 @@ pipeline {
       }
     }
     stage('reuse lint') {
-      steps { catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') { script { inContainer(REUSE_IMAGE, 'reuse lint') } } }
-      post { failure { script { failedStages << env.STAGE_NAME } } }
+      steps { catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') { script { tracked(failedStages, env.STAGE_NAME) { inContainer(REUSE_IMAGE, 'reuse lint') } } } }
     }
     stage('traefik helper') {
       steps {
-        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') { script { tracked(failedStages, env.STAGE_NAME) {
           // The commands from plugins/traefik/build-environment.md. The test stage runs the tests.
           sh '''
             docker build --progress=plain --label hc-ci=1 --target test -t "hc-ci-traefik-test:$BUILD_TAG" plugins/traefik
             docker build --progress=plain --label hc-ci=1 --target runtime -t "hc-ci-traefik-runtime:$BUILD_TAG" plugins/traefik
           '''
-        }
+        } } }
       }
       post {
         always { sh 'docker rmi "hc-ci-traefik-test:$BUILD_TAG" "hc-ci-traefik-runtime:$BUILD_TAG" >/dev/null 2>&1 || true' }
-        failure { script { failedStages << env.STAGE_NAME } }
       }
     }
     stage('dev fixture tests') {
       steps {
-        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') { script {
+        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') { script { tracked(failedStages, env.STAGE_NAME) {
           inContainer(nodeImage(), 'node --test $(find dev -name "*.test.mjs" -o -name test.mjs | sort)')
           // PyYAML is the one dependency; it is installed into the throwaway container only.
           inContainer(PYTHON_IMAGE, "pip install -q --user --no-cache-dir PyYAML==${PYYAML_VERSION} && " +
             'python3 -m unittest discover -s dev/traefik-live-test -p "test_*.py" -v', true)
-        } }
+        } } }
       }
-      post { failure { script { failedStages << env.STAGE_NAME } } }
     }
     stage('manifests (core PDK)') {
       steps {
-        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') { script { tracked(failedStages, env.STAGE_NAME) {
           dir('.core-pdk') { deleteDir() }
           // The current core PDK: sdk/plugin of Homelab-Control main (public), nothing else.
           sh """
@@ -104,11 +112,10 @@ pipeline {
               done
               test "$n" -gt 0''')
           }
-        }
+        } } }
       }
       post {
         always { dir('.core-pdk') { deleteDir() } }
-        failure { script { failedStages << env.STAGE_NAME } }
       }
     }
   }
